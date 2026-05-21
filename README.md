@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Car Tender Web System
 
 A full-stack car tender management system built with React, Node.js, and SQLite.
@@ -54,3 +55,6 @@ npm run dev
 - `/client`: React frontend
 - `/server`: Express backend
 - `/server/uploads`: Local storage for images, videos, and documents
+=======
+# Auto-Tender
+>>>>>>> bb6061593028f7821dc3d270e21dc34bf9a52619
