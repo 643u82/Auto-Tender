@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db/database');
+const { dbGet, dbAll, dbRun } = require('../db/database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -32,14 +32,14 @@ const upload = multer({
 });
 
 // GET /api/admin/tenders - All tenders
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const tenders = db.prepare(`
+    const tenders = await dbAll(`
       SELECT t.*, 
       (SELECT COUNT(*) FROM tender_media WHERE tender_id = t.id) as media_count
       FROM tenders t
       ORDER BY t.created_at DESC
-    `).all();
+    `);
     res.json(tenders);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -47,42 +47,40 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/admin/tenders - Create tender
-router.post('/', upload.any(), (req, res) => {
+router.post('/', upload.any(), async (req, res) => {
   const {
     tender_ref, make, model, year, mileage, color, transmission,
     fuel, condition, price, currency, deadline, status, description, tags
   } = req.body;
 
   try {
-    const insertTender = db.prepare(`
-      INSERT INTO tenders (
+    const posted_date = new Date().toISOString();
+    const result = await dbRun(
+      `INSERT INTO tenders (
         tender_ref, make, model, year, mileage, color, transmission,
         fuel, condition, price, currency, deadline, status, description, tags, posted_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const posted_date = new Date().toISOString();
-    const result = insertTender.run(
-      tender_ref, make, model, year, mileage, color, transmission,
-      fuel, condition, price, currency, deadline, status, description, tags, posted_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        tender_ref, make, model, year, mileage, color, transmission,
+        fuel, condition, price, currency, deadline, status, description, tags, posted_date
+      ]
     );
 
     const tenderId = result.lastInsertRowid;
 
     // Handle uploaded files
     if (req.files && req.files.length > 0) {
-      const insertMedia = db.prepare(`
-        INSERT INTO tender_media (tender_id, type, filename, original_name)
-        VALUES (?, ?, ?, ?)
-      `);
-
-      req.files.forEach(file => {
+      for (const file of req.files) {
         let type = 'document';
         if (file.mimetype.startsWith('image/')) type = 'image';
         else if (file.mimetype.startsWith('video/')) type = 'video';
         
-        insertMedia.run(tenderId, type, file.filename, file.originalname);
-      });
+        await dbRun(
+          `INSERT INTO tender_media (tender_id, type, filename, original_name)
+           VALUES (?, ?, ?, ?)`,
+          [tenderId, type, file.filename, file.originalname]
+        );
+      }
     }
 
     res.status(201).json({ id: tenderId, message: 'Tender created successfully' });
@@ -93,7 +91,7 @@ router.post('/', upload.any(), (req, res) => {
 });
 
 // PUT /api/admin/tenders/:id - Update tender
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const {
     tender_ref, make, model, year, mileage, color, transmission,
@@ -101,18 +99,17 @@ router.put('/:id', (req, res) => {
   } = req.body;
 
   try {
-    const update = db.prepare(`
-      UPDATE tenders SET
+    await dbRun(
+      `UPDATE tenders SET
         tender_ref = ?, make = ?, model = ?, year = ?, mileage = ?, 
         color = ?, transmission = ?, fuel = ?, condition = ?, 
         price = ?, currency = ?, deadline = ?, status = ?, 
         description = ?, tags = ?
-      WHERE id = ?
-    `);
-
-    update.run(
-      tender_ref, make, model, year, mileage, color, transmission,
-      fuel, condition, price, currency, deadline, status, description, tags, id
+      WHERE id = ?`,
+      [
+        tender_ref, make, model, year, mileage, color, transmission,
+        fuel, condition, price, currency, deadline, status, description, tags, id
+      ]
     );
 
     res.json({ message: 'Tender updated successfully' });
@@ -122,12 +119,12 @@ router.put('/:id', (req, res) => {
 });
 
 // PATCH /api/admin/tenders/:id/status - Toggle status
-router.patch('/:id/status', (req, res) => {
+router.patch('/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
   try {
-    db.prepare('UPDATE tenders SET status = ? WHERE id = ?').run(status, id);
+    await dbRun('UPDATE tenders SET status = ? WHERE id = ?', [status, id]);
     res.json({ message: 'Status updated' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -135,12 +132,12 @@ router.patch('/:id/status', (req, res) => {
 });
 
 // DELETE /api/admin/tenders/:id - Delete tender and files
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
     // Get all media files first
-    const media = db.prepare('SELECT * FROM tender_media WHERE tender_id = ?').all(id);
+    const media = await dbAll('SELECT * FROM tender_media WHERE tender_id = ?', [id]);
 
     // Delete files from disk
     media.forEach(file => {
@@ -155,9 +152,8 @@ router.delete('/:id', (req, res) => {
       }
     });
 
-    // Delete from DB (tender_media rows will be deleted by ON DELETE CASCADE if configured, 
-    // but better-sqlite3 needs PRAGMA foreign_keys = ON)
-    db.prepare('DELETE FROM tenders WHERE id = ?').run(id);
+    // Delete from DB (tender_media rows will be deleted by ON DELETE CASCADE)
+    await dbRun('DELETE FROM tenders WHERE id = ?', [id]);
 
     res.json({ message: 'Tender and associated files deleted' });
   } catch (error) {

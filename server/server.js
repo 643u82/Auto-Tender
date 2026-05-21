@@ -9,13 +9,9 @@ const publicTenderRoutes = require('./routes/tenders');
 const adminTenderRoutes = require('./routes/adminTenders');
 const mediaRoutes = require('./routes/media');
 const authMiddleware = require('./middleware/auth');
-const db = require('./db/database');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// Enable foreign keys in SQLite
-db.pragma('foreign_keys = ON');
 
 // Middleware
 app.use(cors());

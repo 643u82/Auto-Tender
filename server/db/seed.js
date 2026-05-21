@@ -1,4 +1,4 @@
-const db = require('./database');
+const { dbRun } = require('./database');
 const bcrypt = require('bcrypt');
 
 async function seed() {
@@ -11,12 +11,11 @@ async function seed() {
     const passwordHash = await bcrypt.hash(password, saltRounds);
     
     // Use the users table instead of admins
-    const insert = db.prepare(`
-      INSERT OR IGNORE INTO users (email, username, password_hash, name, role) 
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    
-    const result = insert.run(email, username, passwordHash, 'System Administrator', 'admin');
+    const result = await dbRun(
+      `INSERT OR IGNORE INTO users (email, username, password_hash, name, role) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [email, username, passwordHash, 'System Administrator', 'admin']
+    );
 
     if (result.changes > 0) {
       console.log('Admin user seeded successfully into users table');

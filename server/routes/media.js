@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db/database');
+const { dbGet, dbRun } = require('../db/database');
 const path = require('path');
 const fs = require('fs');
 
 // DELETE /api/admin/media/:mediaId - Delete a single media file
-router.delete('/:mediaId', (req, res) => {
+router.delete('/:mediaId', async (req, res) => {
   const { mediaId } = req.params;
 
   try {
-    const file = db.prepare('SELECT * FROM tender_media WHERE id = ?').get(mediaId);
+    const file = await dbGet('SELECT * FROM tender_media WHERE id = ?', [mediaId]);
 
     if (!file) {
       return res.status(404).json({ message: 'Media not found' });
@@ -25,7 +25,7 @@ router.delete('/:mediaId', (req, res) => {
       fs.unlinkSync(filePath);
     }
 
-    db.prepare('DELETE FROM tender_media WHERE id = ?').run(mediaId);
+    await dbRun('DELETE FROM tender_media WHERE id = ?', [mediaId]);
 
     res.json({ message: 'Media file deleted' });
   } catch (error) {

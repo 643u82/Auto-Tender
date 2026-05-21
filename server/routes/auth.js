@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const db = require('../db/database');
+const { dbRun, dbGet } = require('../db/database');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -17,7 +17,10 @@ router.post('/register', async (req, res) => {
 
   try {
     // Check if user already exists
-    const existingUser = db.prepare('SELECT * FROM users WHERE email = ? OR (username IS NOT NULL AND username = ?)').get(email, username || null);
+    const existingUser = await dbGet(
+      'SELECT * FROM users WHERE email = ? OR (username IS NOT NULL AND username = ?)',
+      [email, username || null]
+    );
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email or username already exists' });
     }
@@ -25,11 +28,11 @@ router.post('/register', async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const insert = db.prepare(`
-      INSERT INTO users (email, username, password_hash, name, role)
-      VALUES (?, ?, ?, ?, 'user')
-    `);
-    const result = insert.run(email, username || null, passwordHash, name);
+    const result = await dbRun(
+      `INSERT INTO users (email, username, password_hash, name, role)
+       VALUES (?, ?, ?, ?, 'user')`,
+      [email, username || null, passwordHash, name]
+    );
 
     const token = jwt.sign(
       { id: result.lastInsertRowid, email, role: 'user' },
@@ -62,7 +65,10 @@ router.post('/login', async (req, res) => {
 
   try {
     // Check users table for email OR username
-    const user = db.prepare('SELECT * FROM users WHERE email = ? OR username = ?').get(identifier, identifier);
+    const user = await dbGet(
+      'SELECT * FROM users WHERE email = ? OR username = ?',
+      [identifier, identifier]
+    );
 
     if (!user || !user.password_hash) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -115,20 +121,25 @@ router.post('/google', async (req, res) => {
     const { sub: googleId, email, name, picture } = payload;
 
     // Check if user exists
-    let user = db.prepare('SELECT * FROM users WHERE google_id = ? OR email = ?').get(googleId, email);
+    let user = await dbGet(
+      'SELECT * FROM users WHERE google_id = ? OR email = ?',
+      [googleId, email]
+    );
 
     if (!user) {
       // Register new user
-      const insert = db.prepare(`
-        INSERT INTO users (email, name, google_id, picture, role)
-        VALUES (?, ?, ?, ?, 'user')
-      `);
-      const result = insert.run(email, name, googleId, picture);
+      const result = await dbRun(
+        `INSERT INTO users (email, name, google_id, picture, role)
+         VALUES (?, ?, ?, ?, 'user')`,
+        [email, name, googleId, picture]
+      );
       user = { id: result.lastInsertRowid, email, name, google_id: googleId, picture, role: 'user' };
     } else if (!user.google_id) {
       // Link Google account to existing email (if legacy user existed)
-      db.prepare('UPDATE users SET google_id = ?, picture = ?, name = ? WHERE id = ?')
-        .run(googleId, picture, name, user.id);
+      await dbRun(
+        'UPDATE users SET google_id = ?, picture = ?, name = ? WHERE id = ?',
+        [googleId, picture, name, user.id]
+      );
       user.google_id = googleId;
       user.picture = picture;
       user.name = name;
