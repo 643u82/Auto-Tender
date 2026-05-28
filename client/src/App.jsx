@@ -13,6 +13,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/admin/Dashboard';
 import ManageTenders from './pages/admin/ManageTenders';
 import TenderForm from './pages/admin/TenderForm';
+import ManagePayments from './pages/admin/ManagePayments';
 
 function App() {
   return (
@@ -45,6 +46,11 @@ function App() {
             <Route path="/admin/tenders/:id/edit" element={
               <ProtectedRoute adminOnly={true}>
                 <TenderForm />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/payments" element={
+              <ProtectedRoute adminOnly={true}>
+                <ManagePayments />
               </ProtectedRoute>
             } />
           </Routes>

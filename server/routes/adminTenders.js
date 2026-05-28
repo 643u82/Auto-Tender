@@ -46,6 +46,10 @@ router.get('/', async (req, res) => {
   }
 });
 
+const cloudinary = require('cloudinary').v2;
+
+// Cloudinary is configured via the CLOUDINARY_URL environment variable
+
 // POST /api/admin/tenders - Create tender
 router.post('/', upload.any(), async (req, res) => {
   const {
@@ -72,13 +76,29 @@ router.post('/', upload.any(), async (req, res) => {
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         let type = 'document';
-        if (file.mimetype.startsWith('image/')) type = 'image';
-        else if (file.mimetype.startsWith('video/')) type = 'video';
+        let resourceType = 'raw';
+        
+        if (file.mimetype.startsWith('image/')) {
+          type = 'image';
+          resourceType = 'image';
+        } else if (file.mimetype.startsWith('video/')) {
+          type = 'video';
+          resourceType = 'video';
+        }
+        
+        // Upload to Cloudinary
+        const uploadResult = await cloudinary.uploader.upload(file.path, {
+          resource_type: resourceType,
+          folder: `autotender/${type}s`
+        });
+        
+        // Delete local temporary file
+        fs.unlinkSync(file.path);
         
         await dbRun(
           `INSERT INTO tender_media (tender_id, type, filename, original_name)
            VALUES (?, ?, ?, ?)`,
-          [tenderId, type, file.filename, file.originalname]
+          [tenderId, type, uploadResult.secure_url, file.originalname]
         );
       }
     }

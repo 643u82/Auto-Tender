@@ -6,13 +6,39 @@ import ImageGallery from '../components/ImageGallery';
 import { 
   Calendar, Gauge, Fuel, Shield, Download, 
   Video, FileText, ArrowLeft, Clock, MapPin, 
-  ChevronLeft, ChevronRight, File, Car
+  ChevronLeft, ChevronRight, File, Car, Lock
 } from 'lucide-react';
 
 const TenderDetail = () => {
   const { id } = useParams();
   const [tender, setTender] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [transactionRef, setTransactionRef] = useState('');
+  const [paymentType, setPaymentType] = useState('document');
+  const [paymentStatus, setPaymentStatus] = useState(null);
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    setPaymentStatus('submitting');
+    try {
+      await axios.post('/payments', {
+        transaction_ref: transactionRef,
+        payment_type: paymentType,
+        tender_id: paymentType === 'document' ? tender.id : null,
+        amount: paymentType === 'document' ? 300 : 3000
+      });
+      setPaymentStatus('success');
+    } catch (err) {
+      console.error('Error submitting payment:', err);
+      if (err.response && err.response.status === 401) {
+        alert('You must be logged in to submit a payment.');
+      } else {
+        alert('Failed to submit payment. Please try again.');
+      }
+      setPaymentStatus(null);
+    }
+  };
 
   useEffect(() => {
     const fetchTender = async () => {
@@ -111,7 +137,7 @@ const TenderDetail = () => {
                   {videos.map(vid => (
                     <div key={vid.id} className="aspect-video rounded-card overflow-hidden border border-border bg-black shadow-2xl">
                       <video controls className="w-full h-full">
-                        <source src={`/uploads/videos/${vid.filename}`} />
+                        <source src={vid.filename.startsWith("http") ? vid.filename : `/uploads/videos/${vid.filename}`} />
                       </video>
                     </div>
                   ))}
@@ -125,36 +151,72 @@ const TenderDetail = () => {
                 <FileText className="text-accent" />
                 Technical Documents
               </h2>
-              <div className="grid gap-3">
-                {docs.map(doc => (
-                  <div 
-                    key={doc.id} 
-                    className="flex items-center justify-between p-5 rounded-xl bg-surface border border-border hover:border-accent transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-surface2 rounded-lg text-accent group-hover:scale-110 transition-transform">
-                        <File size={24} />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-text-primary">{doc.original_name}</span>
-                        <span className="text-xs text-text-muted uppercase tracking-wider">PDF Document</span>
-                      </div>
+              
+              {tender.isLocked ? (
+                <div className="relative overflow-hidden rounded-xl border border-border bg-surface p-8 text-center group">
+                  <div className="absolute inset-0 bg-surface2/50 backdrop-blur-md z-10 flex flex-col items-center justify-center p-6">
+                    <div className="bg-bg p-4 rounded-full mb-4 shadow-xl border border-border text-accent group-hover:scale-110 transition-transform">
+                      <Lock size={32} />
                     </div>
-                    <a 
-                      href={`/uploads/docs/${doc.filename}`} 
-                      download={doc.original_name}
-                      className="btn-outline py-2 px-6 text-sm"
+                    <h3 className="text-xl font-bold font-syne text-text-primary mb-2">Documents Locked</h3>
+                    <p className="text-text-muted mb-6 max-w-md">
+                      You need to purchase access to view and download the technical documents for this tender.
+                    </p>
+                    <button 
+                      onClick={() => setShowPaymentModal(true)}
+                      className="btn-primary shadow-gold transition-transform hover:-translate-y-1 px-8"
                     >
-                      Download
-                    </a>
+                      Unlock Now
+                    </button>
                   </div>
-                ))}
-                {docs.length === 0 && (
-                  <div className="p-10 text-center bg-surface border border-dashed border-border rounded-card text-text-muted italic">
-                    No documents available for this tender.
+                  {/* Dummy blurred content behind the lock */}
+                  <div className="opacity-30 blur-[4px] pointer-events-none space-y-4">
+                    {[1, 2].map(i => (
+                      <div key={i} className="flex items-center justify-between p-5 rounded-xl border border-border bg-surface2">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-bg rounded-lg"><File size={24} /></div>
+                          <div className="flex flex-col text-left">
+                            <span className="h-4 w-48 bg-border rounded mb-2"></span>
+                            <span className="h-3 w-24 bg-border rounded"></span>
+                          </div>
+                        </div>
+                        <div className="h-8 w-24 bg-border rounded"></div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {docs.map(doc => (
+                    <div 
+                      key={doc.id} 
+                      className="flex items-center justify-between p-5 rounded-xl bg-surface border border-border hover:border-accent transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-surface2 rounded-lg text-accent group-hover:scale-110 transition-transform">
+                          <File size={24} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-text-primary">{doc.original_name}</span>
+                          <span className="text-xs text-text-muted uppercase tracking-wider">PDF Document</span>
+                        </div>
+                      </div>
+                      <a 
+                        href={doc.filename.startsWith("http") ? doc.filename : `/uploads/docs/${doc.filename}`} 
+                        download={doc.original_name}
+                        className="btn-outline py-2 px-6 text-sm"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                  {docs.length === 0 && (
+                    <div className="p-10 text-center bg-surface border border-dashed border-border rounded-card text-text-muted italic">
+                      No documents available for this tender.
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           </div>
 
@@ -202,6 +264,99 @@ const TenderDetail = () => {
           </aside>
         </div>
       </main>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
+          <div className="bg-surface border border-border rounded-card max-w-md w-full p-8 shadow-2xl relative">
+            <button 
+              onClick={() => setShowPaymentModal(false)}
+              className="absolute top-4 right-4 text-text-muted hover:text-text-primary"
+            >
+              ✕
+            </button>
+            
+            <h2 className="text-2xl font-syne font-bold text-text-primary mb-2">Unlock Documents</h2>
+            <p className="text-text-muted mb-6 text-sm">Choose a plan and pay manually via Telebirr.</p>
+
+            {paymentStatus === 'success' ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green/10 text-green rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield size={32} />
+                </div>
+                <h3 className="text-xl font-bold mb-2">Payment Submitted!</h3>
+                <p className="text-text-muted mb-6">
+                  We are verifying your transaction. Once approved by an admin, the documents will be unlocked automatically.
+                </p>
+                <button 
+                  onClick={() => setShowPaymentModal(false)}
+                  className="btn-primary w-full"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handlePaymentSubmit} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={`border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'document' ? 'border-accent bg-accent/5' : 'border-border hover:border-text-muted'}`}>
+                    <input 
+                      type="radio" 
+                      name="paymentType" 
+                      value="document"
+                      className="hidden"
+                      checked={paymentType === 'document'}
+                      onChange={() => setPaymentType('document')}
+                    />
+                    <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Single Tender</div>
+                    <div className="font-bold text-xl text-text-primary">300 ETB</div>
+                  </label>
+                  
+                  <label className={`border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'subscription' ? 'border-accent bg-accent/5' : 'border-border hover:border-text-muted'}`}>
+                    <input 
+                      type="radio" 
+                      name="paymentType" 
+                      value="subscription"
+                      className="hidden"
+                      checked={paymentType === 'subscription'}
+                      onChange={() => setPaymentType('subscription')}
+                    />
+                    <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">30 Days Access</div>
+                    <div className="font-bold text-xl text-text-primary">3000 ETB</div>
+                  </label>
+                </div>
+
+                <div className="bg-surface2 p-4 rounded-xl border border-border text-center space-y-2">
+                  <p className="text-sm text-text-muted font-medium">Please send the exact amount via Telebirr to:</p>
+                  <p className="text-2xl font-syne font-bold tracking-wider text-accent">0962944251</p>
+                  <p className="text-sm font-bold text-text-primary uppercase tracking-widest">Abenezer Teshome</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-muted mb-2">
+                    Enter Telebirr Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 7BG4FG8H3D"
+                    className="input-field uppercase"
+                    value={transactionRef}
+                    onChange={(e) => setTransactionRef(e.target.value)}
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={paymentStatus === 'submitting' || !transactionRef}
+                  className="btn-primary w-full py-4 text-lg disabled:opacity-50"
+                >
+                  {paymentStatus === 'submitting' ? 'Submitting...' : 'Submit Payment'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

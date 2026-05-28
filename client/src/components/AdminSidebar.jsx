@@ -7,7 +7,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  ExternalLink
+  ExternalLink,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -20,6 +21,7 @@ const AdminSidebar = () => {
   const menuItems = [
     { label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/admin' },
     { label: 'Manage Tenders', icon: <Car size={20} />, path: '/admin/tenders' },
+    { label: 'Payments', icon: <CreditCard size={20} />, path: '/admin/payments' },
     { label: 'New Tender', icon: <PlusCircle size={20} />, path: '/admin/tenders/new' },
   ];
 

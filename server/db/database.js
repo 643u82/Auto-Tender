@@ -1,119 +1,125 @@
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const path = require('path');
-const fs = require('fs');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const dbPath = path.resolve(__dirname, 'car_tender.db');
-const db = new sqlite3.Database('./database.db');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-// Enable foreign keys
-db.run('PRAGMA foreign_keys = ON');
-
-// Helper function to wrap db.run in a promise
-const dbRun = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
-    });
-  });
+// Helper to convert SQLite `?` to PostgreSQL `$1, $2`
+const convertSql = (sql) => {
+  let i = 1;
+  return sql.replace(/\?/g, () => `$${i++}`);
 };
 
-// Helper function to wrap db.get in a promise
-const dbGet = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+const dbRun = async (sql, params = []) => {
+  const pgSql = convertSql(sql);
+  // If it's an INSERT, try to return id to mimic lastInsertRowid
+  let querySql = pgSql;
+  if (pgSql.trim().toUpperCase().startsWith('INSERT') && !pgSql.toUpperCase().includes('RETURNING')) {
+    querySql += ' RETURNING id';
+  }
+  
+  // Handle SQLite INSERT OR IGNORE -> Postgres ON CONFLICT DO NOTHING
+  querySql = querySql.replace(/INSERT OR IGNORE INTO/gi, 'INSERT INTO');
+  // Note: True 'ON CONFLICT DO NOTHING' requires knowing the unique constraint, so this is a basic approximation.
+  // For precise compatibility, queries might need manual adjustment.
+
+  try {
+    const res = await pool.query(querySql, params);
+    return { 
+      lastInsertRowid: res.rows[0]?.id || null, 
+      changes: res.rowCount 
+    };
+  } catch (err) {
+    if (err.code === '23505') { // Unique violation
+      return { changes: 0 };
+    }
+    throw err;
+  }
 };
 
-// Helper function to wrap db.all in a promise
-const dbAll = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+const dbGet = async (sql, params = []) => {
+  const pgSql = convertSql(sql);
+  const res = await pool.query(pgSql, params);
+  return res.rows[0];
 };
 
-// Create tables if they don't exist
+const dbAll = async (sql, params = []) => {
+  const pgSql = convertSql(sql);
+  const res = await pool.query(pgSql, params);
+  return res.rows;
+};
+
+// Create tables if they don't exist (PostgreSQL dialect)
 const initDatabase = async () => {
   const createTablesSQL = `
     CREATE TABLE IF NOT EXISTS tenders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tender_ref TEXT UNIQUE,
-      make TEXT,
-      model TEXT,
+      id SERIAL PRIMARY KEY,
+      tender_ref VARCHAR(255) UNIQUE,
+      make VARCHAR(255),
+      model VARCHAR(255),
       year INTEGER,
-      mileage TEXT,
-      color TEXT,
-      transmission TEXT,
-      fuel TEXT,
-      condition TEXT,
+      mileage VARCHAR(255),
+      color VARCHAR(255),
+      transmission VARCHAR(255),
+      fuel VARCHAR(255),
+      condition VARCHAR(255),
       price REAL,
-      currency TEXT DEFAULT 'USD',
-      deadline TEXT,
-      status TEXT DEFAULT 'draft',
+      currency VARCHAR(10) DEFAULT 'USD',
+      deadline TIMESTAMP,
+      status VARCHAR(50) DEFAULT 'draft',
       description TEXT,
       tags TEXT,
-      posted_date TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      posted_date TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS tender_media (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tender_id INTEGER,
-      type TEXT,
-      filename TEXT,
-      original_name TEXT,
-      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (tender_id) REFERENCES tenders(id) ON DELETE CASCADE
+      id SERIAL PRIMARY KEY,
+      tender_id INTEGER REFERENCES tenders(id) ON DELETE CASCADE,
+      type VARCHAR(50),
+      filename VARCHAR(255),
+      original_name VARCHAR(255),
+      uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE,
-      username TEXT UNIQUE,
-      password_hash TEXT,
-      name TEXT,
-      google_id TEXT UNIQUE,
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE,
+      username VARCHAR(255) UNIQUE,
+      password_hash VARCHAR(255),
+      name VARCHAR(255),
+      google_id VARCHAR(255) UNIQUE,
       picture TEXT,
-      role TEXT DEFAULT 'user',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      role VARCHAR(50) DEFAULT 'user',
+      subscription_expires_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      payment_type VARCHAR(50) DEFAULT 'document',
+      tender_id INTEGER REFERENCES tenders(id) ON DELETE CASCADE,
+      transaction_ref VARCHAR(255) NOT NULL,
+      amount REAL,
+      status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
   
-  return new Promise((resolve, reject) => {
-    db.exec(createTablesSQL, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-};
-
-// Migration: Check if admins table exists and migrate to users if needed
-const migrateAdmins = async () => {
   try {
-    const adminTable = await dbGet("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
-    if (adminTable) {
-      const admins = await dbAll("SELECT * FROM admins");
-      for (const admin of admins) {
-        await dbRun(
-          "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
-          [admin.username, admin.password_hash]
-        );
-      }
-    }
-  } catch (error) {
-    console.error('Migration error:', error);
+    await pool.query(createTablesSQL);
+  } catch (err) {
+    console.error('Database initialization error:', err);
+    throw err;
   }
 };
 
 // Initialize database on startup
 initDatabase()
-  .then(() => migrateAdmins())
-  .catch(err => console.error('Database initialization error:', err));
+  .then(() => console.log('PostgreSQL Database initialized successfully'))
+  .catch(err => console.error('PostgreSQL initialization error:', err));
 
-module.exports = { db, dbRun, dbGet, dbAll };
+module.exports = { pool, dbRun, dbGet, dbAll };

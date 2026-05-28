@@ -3,7 +3,7 @@ import { Calendar, FileText, Gauge, Fuel, Clock } from 'lucide-react';
 
 const TenderCard = ({ tender }) => {
   const coverImage = tender.cover_image 
-    ? `/uploads/images/${tender.cover_image}` 
+    ? tender.cover_image.startsWith("http") ? tender.cover_image : `/uploads/images/${tender.cover_image}` 
     : null;
 
   const statusColors = {

@@ -35,9 +35,12 @@ app.use('/uploads/docs', express.static(path.join(__dirname, 'uploads/docs')));
 app.use('/api/auth', authRoutes);
 app.use('/api/tenders', publicTenderRoutes);
 
+const paymentRoutes = require('./routes/payments');
+
 // Protected Admin Routes
 app.use('/api/admin/tenders', authMiddleware, adminTenderRoutes);
 app.use('/api/admin/media', authMiddleware, mediaRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Start server
 app.listen(PORT, () => {

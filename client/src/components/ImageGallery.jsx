@@ -34,7 +34,7 @@ const ImageGallery = ({ images }) => {
                   : 'border-border opacity-60 hover:opacity-100 hover:border-accent/50'
               }`}
             >
-              <img src={`/uploads/images/${img.filename}`} className="w-full h-full object-cover" alt="Thumbnail" />
+              <img src={img.filename.startsWith("http") ? img.filename : `/uploads/images/${img.filename}`} className="w-full h-full object-cover" alt="Thumbnail" />
             </button>
           ))}
         </div>

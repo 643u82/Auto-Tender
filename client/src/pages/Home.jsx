@@ -57,9 +57,6 @@ const Home = () => {
             <button onClick={() => document.getElementById('tenders-grid').scrollIntoView({ behavior: 'smooth' })} className="btn-primary px-10 py-4 text-lg">
               Browse Tenders
             </button>
-            <a href="/login" className="btn-outline px-10 py-4 text-lg">
-              Admin Access
-            </a>
           </div>
         </div>
       </header>
