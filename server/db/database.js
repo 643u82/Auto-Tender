@@ -2,12 +2,28 @@ const { Pool } = require('pg');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
+function normalizeDatabaseUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    // pg/pg-connection-string may treat sslmode=require as verify-full and override ssl options.
+    // We enforce TLS via `ssl` below, so strip sslmode to avoid that override behavior.
+    u.searchParams.delete('sslmode');
+    u.searchParams.delete('sslrootcert');
+    u.searchParams.delete('sslcert');
+    u.searchParams.delete('sslkey');
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+const connectionString = normalizeDatabaseUrl(process.env.DATABASE_URL);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   // Supabase pooler on Render: avoid SELF_SIGNED_CERT_IN_CHAIN
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: false }
-    : undefined,
+  ssl: connectionString ? { rejectUnauthorized: false } : undefined,
 });
 
 // Helper to convert SQLite `?` to PostgreSQL `$1, $2`
