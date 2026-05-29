@@ -4,6 +4,10 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  // Supabase pooler on Render: avoid SELF_SIGNED_CERT_IN_CHAIN
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 // Helper to convert SQLite `?` to PostgreSQL `$1, $2`
