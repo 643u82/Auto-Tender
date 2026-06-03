@@ -131,6 +131,26 @@ const initDatabase = async () => {
   
   try {
     await pool.query(createTablesSQL);
+    
+    // Add new columns to payments table for the manual verification workflow
+    // Catch errors in case columns already exist
+    const alterQueries = [
+      'ALTER TABLE payments ADD COLUMN payment_proof VARCHAR(255);',
+      'ALTER TABLE payments ADD COLUMN admin_note TEXT;',
+      'ALTER TABLE payments ADD COLUMN approved_by INTEGER REFERENCES users(id);',
+      'ALTER TABLE payments ADD COLUMN approved_at TIMESTAMP;'
+    ];
+
+    for (let query of alterQueries) {
+      try {
+        await pool.query(query);
+      } catch (e) {
+        // Ignore "column already exists" errors (code 42701 in postgres)
+        if (e.code !== '42701') {
+          console.error('Error altering table:', e.message);
+        }
+      }
+    }
   } catch (err) {
     console.error('Database initialization error:', err);
     throw err;

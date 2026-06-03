@@ -17,16 +17,24 @@ const TenderDetail = () => {
   const [transactionRef, setTransactionRef] = useState('');
   const [paymentType, setPaymentType] = useState('document');
   const [paymentStatus, setPaymentStatus] = useState(null);
+  const [paymentProof, setPaymentProof] = useState(null);
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     setPaymentStatus('submitting');
+    
+    const formData = new FormData();
+    formData.append('transaction_ref', transactionRef);
+    formData.append('payment_type', paymentType);
+    if (paymentType === 'document') formData.append('tender_id', tender.id);
+    formData.append('amount', paymentType === 'document' ? 300 : 3000);
+    if (paymentProof) {
+      formData.append('payment_proof', paymentProof);
+    }
+
     try {
-      await axios.post('/payments', {
-        transaction_ref: transactionRef,
-        payment_type: paymentType,
-        tender_id: paymentType === 'document' ? tender.id : null,
-        amount: paymentType === 'document' ? 300 : 3000
+      await axios.post('/payments', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       setPaymentStatus('success');
     } catch (err) {
@@ -155,19 +163,30 @@ const TenderDetail = () => {
               {tender.isLocked ? (
                 <div className="relative overflow-hidden rounded-xl border border-border bg-surface p-8 text-center group">
                   <div className="absolute inset-0 bg-surface2/50 backdrop-blur-md z-10 flex flex-col items-center justify-center p-6">
-                    <div className="bg-bg p-4 rounded-full mb-4 shadow-xl border border-border text-accent group-hover:scale-110 transition-transform">
-                      <Lock size={32} />
+                    <div className={`p-4 rounded-full mb-4 shadow-xl border border-border transition-transform ${tender.paymentStatus?.status === 'pending' ? 'bg-accent/10 text-accent group-hover:scale-105' : tender.paymentStatus?.status === 'rejected' ? 'bg-red/10 text-red group-hover:scale-105' : 'bg-bg text-accent group-hover:scale-110'}`}>
+                      {tender.paymentStatus?.status === 'pending' ? <Clock size={32} /> : tender.paymentStatus?.status === 'rejected' ? <Shield size={32} /> : <Lock size={32} />}
                     </div>
-                    <h3 className="text-xl font-bold font-syne text-text-primary mb-2">Documents Locked</h3>
+                    
+                    <h3 className="text-xl font-bold font-syne text-text-primary mb-2">
+                      {tender.paymentStatus?.status === 'pending' ? 'Pending Verification' : tender.paymentStatus?.status === 'rejected' ? 'Payment Rejected' : 'Documents Locked'}
+                    </h3>
+                    
                     <p className="text-text-muted mb-6 max-w-md">
-                      You need to purchase access to view and download the technical documents for this tender.
+                      {tender.paymentStatus?.status === 'pending' 
+                        ? 'We are verifying your transaction. Once approved, the documents will be unlocked automatically.' 
+                        : tender.paymentStatus?.status === 'rejected'
+                        ? \`Your purchase request was rejected. Reason: \${tender.paymentStatus.admin_note || 'Invalid payment.'}\`
+                        : 'You need to purchase access to view and download the technical documents for this tender.'}
                     </p>
-                    <button 
-                      onClick={() => setShowPaymentModal(true)}
-                      className="btn-primary shadow-gold transition-transform hover:-translate-y-1 px-8"
-                    >
-                      Unlock Now
-                    </button>
+                    
+                    {tender.paymentStatus?.status !== 'pending' && (
+                      <button 
+                        onClick={() => setShowPaymentModal(true)}
+                        className="btn-primary shadow-gold transition-transform hover:-translate-y-1 px-8"
+                      >
+                        {tender.paymentStatus?.status === 'rejected' ? 'Try Again' : 'Unlock Now'}
+                      </button>
+                    )}
                   </div>
                   {/* Dummy blurred content behind the lock */}
                   <div className="opacity-30 blur-[4px] pointer-events-none space-y-4">
@@ -345,9 +364,22 @@ const TenderDetail = () => {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-text-muted mb-2">
+                    Upload Payment Proof (Screenshot/Receipt)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    required
+                    className="w-full text-sm text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/10 file:text-accent hover:file:bg-accent/20 transition-colors"
+                    onChange={(e) => setPaymentProof(e.target.files[0])}
+                  />
+                </div>
+
                 <button 
                   type="submit" 
-                  disabled={paymentStatus === 'submitting' || !transactionRef}
+                  disabled={paymentStatus === 'submitting' || !transactionRef || !paymentProof}
                   className="btn-primary w-full py-4 text-lg disabled:opacity-50"
                 >
                   {paymentStatus === 'submitting' ? 'Submitting...' : 'Submit Payment'}

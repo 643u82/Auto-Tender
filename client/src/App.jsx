@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import TenderDetail from './pages/TenderDetail';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import UserDashboard from './pages/UserDashboard';
 
 // Admin Pages
 import Dashboard from './pages/admin/Dashboard';
@@ -26,6 +27,13 @@ function App() {
             <Route path="/tender/:id" element={<TenderDetail />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+
+            {/* Protected User Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <UserDashboard />
+              </ProtectedRoute>
+            } />
 
             {/* Protected Admin Routes */}
             <Route path="/admin" element={

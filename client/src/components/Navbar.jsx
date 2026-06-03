@@ -66,7 +66,17 @@ const Navbar = () => {
                 }`}
               >
                 <LayoutDashboard size={20} />
-                <span>Dashboard</span>
+                <span>Admin Dashboard</span>
+              </Link>
+            ) : (
+              <Link 
+                to="/dashboard" 
+                className={`flex items-center gap-2 font-medium transition-colors hover:text-accent ${
+                  isActive('/dashboard') ? 'text-accent' : 'text-text-primary'
+                }`}
+              >
+                <LayoutDashboard size={20} />
+                <span>My Dashboard</span>
               </Link>
             )}
             <div className="flex items-center gap-3">
@@ -145,7 +155,16 @@ const Navbar = () => {
                   className="flex items-center gap-3 text-lg font-medium text-text-primary"
                 >
                   <LayoutDashboard size={24} />
-                  <span>Dashboard</span>
+                  <span>Admin Dashboard</span>
+                </Link>
+              ) : (
+                <Link 
+                  to="/dashboard" 
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 text-lg font-medium text-text-primary"
+                >
+                  <LayoutDashboard size={24} />
+                  <span>My Dashboard</span>
                 </Link>
               )}
               <div className="flex items-center gap-3">

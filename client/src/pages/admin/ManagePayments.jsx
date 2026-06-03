@@ -23,8 +23,14 @@ const ManagePayments = () => {
   }, []);
 
   const handleUpdateStatus = async (id, status) => {
+    let admin_note = '';
+    if (status === 'rejected') {
+      admin_note = window.prompt('Please enter a reason for rejection (this will be shown to the user):');
+      if (admin_note === null) return; // User cancelled
+    }
+
     try {
-      await axios.put(`/payments/${id}/status`, { status });
+      await axios.put(`/payments/${id}/status`, { status, admin_note });
       fetchPayments();
     } catch (err) {
       console.error('Error updating payment status:', err);
@@ -58,6 +64,7 @@ const ManagePayments = () => {
                   <th className="px-8 py-5">Type / Ref</th>
                   <th className="px-8 py-5 text-right">Amount</th>
                   <th className="px-8 py-5 text-center">Txn ID</th>
+                  <th className="px-8 py-5 text-center">Proof</th>
                   <th className="px-8 py-5 text-center">Date</th>
                   <th className="px-8 py-5 text-center">Status</th>
                   <th className="px-8 py-5 text-right">Actions</th>
@@ -82,20 +89,36 @@ const ManagePayments = () => {
                     <td className="px-8 py-6 text-center font-mono font-bold tracking-widest text-text-muted">
                       {p.transaction_ref}
                     </td>
+                    <td className="px-8 py-6 text-center">
+                      {p.payment_proof ? (
+                        <a href={p.payment_proof} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline text-xs font-bold flex items-center justify-center gap-1">
+                          View Proof
+                        </a>
+                      ) : (
+                        <span className="text-xs text-text-muted italic">N/A</span>
+                      )}
+                    </td>
                     <td className="px-8 py-6 text-center text-xs text-text-muted">
                       {new Date(p.created_at).toLocaleString()}
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${
-                        p.status === 'approved' ? 'bg-green/10 text-green' : 
-                        p.status === 'rejected' ? 'bg-red/10 text-red' : 
-                        'bg-yellow-500/10 text-yellow-500'
-                      }`}>
-                        {p.status === 'approved' ? <CheckCircle size={12} /> : 
-                         p.status === 'rejected' ? <XCircle size={12} /> : 
-                         <Clock size={12} />}
-                        {p.status}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${
+                          p.status === 'approved' ? 'bg-green/10 text-green' : 
+                          p.status === 'rejected' ? 'bg-red/10 text-red' : 
+                          'bg-yellow-500/10 text-yellow-500'
+                        }`}>
+                          {p.status === 'approved' ? <CheckCircle size={12} /> : 
+                           p.status === 'rejected' ? <XCircle size={12} /> : 
+                           <Clock size={12} />}
+                          {p.status}
+                        </span>
+                        {p.admin_note && (
+                          <span className="text-[10px] text-text-muted max-w-[120px] truncate" title={p.admin_note}>
+                            Note: {p.admin_note}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-right">
                       {p.status === 'pending' ? (
