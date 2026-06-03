@@ -129,7 +129,7 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
       await dbRun('UPDATE users SET subscription_expires_at = ? WHERE id = ?', [thirtyDaysFromNow, payment.user_id]);
     }
 
-    res.json({ message: \`Purchase request \${status} successfully.\` });
+    res.json({ message: `Purchase request ${status} successfully.` });
   } catch (error) {
     console.error('Error updating payment status:', error);
     res.status(500).json({ message: 'Internal server error' });
