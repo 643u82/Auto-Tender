@@ -18,6 +18,12 @@ const AdminSidebar = () => {
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to sign out?')) {
+      logout();
+    }
+  };
+
   const menuItems = [
     { label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/admin' },
     { label: 'Manage Tenders', icon: <Car size={20} />, path: '/admin/tenders' },
@@ -76,7 +82,7 @@ const AdminSidebar = () => {
         </button>
 
         <button 
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-text-muted hover:bg-red/10 hover:text-red transition-all group"
         >
           <LogOut size={20} className="group-hover:translate-x-1 transition-transform" />

@@ -10,6 +10,12 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
 
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to sign out?')) {
+      logout();
+    }
+  };
+
   const navLinks = [
     { label: 'Browse', path: '/' },
   ];
@@ -74,7 +80,7 @@ const Navbar = () => {
               <span className="text-sm font-bold text-text-primary hidden lg:inline">{user.name || user.username}</span>
             </div>
             <button 
-              onClick={logout} 
+              onClick={handleLogout} 
               className="flex items-center gap-2 font-medium text-red hover:opacity-80 transition-all"
             >
               <LogOut size={20} />
@@ -147,7 +153,12 @@ const Navbar = () => {
                 <span className="text-lg font-medium text-text-primary">{user.name || user.username}</span>
               </div>
               <button 
-                onClick={() => { logout(); setIsMenuOpen(false); }}
+                onClick={() => { 
+                  if (window.confirm('Are you sure you want to sign out?')) {
+                    logout(); 
+                    setIsMenuOpen(false); 
+                  }
+                }}
                 className="flex items-center gap-3 text-lg font-medium text-red"
               >
                 <LogOut size={24} />
