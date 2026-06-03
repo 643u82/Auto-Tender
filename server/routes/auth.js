@@ -28,14 +28,17 @@ router.post('/register', async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
+    const isAdmin = email === 'Administrator@autotender.com' || email === 'abenezerteshome412@gmail.com';
+    const role = isAdmin ? 'admin' : 'user';
+
     const result = await dbRun(
       `INSERT INTO users (email, username, password_hash, name, role)
-       VALUES (?, ?, ?, ?, 'user')`,
-      [email, username || null, passwordHash, name]
+       VALUES (?, ?, ?, ?, ?)`,
+      [email, username || null, passwordHash, name, role]
     );
 
     const token = jwt.sign(
-      { id: result.lastInsertRowid, email, role: 'user' },
+      { id: result.lastInsertRowid, email, role },
       process.env.JWT_SECRET || 'your_super_secret_jwt_key_123',
       { expiresIn: '24h' }
     );
@@ -46,7 +49,7 @@ router.post('/register', async (req, res) => {
         id: result.lastInsertRowid,
         email,
         name,
-        role: 'user'
+        role
       }
     });
   } catch (error) {
@@ -126,23 +129,33 @@ router.post('/google', async (req, res) => {
       [googleId, email]
     );
 
+    const isAdmin = email === 'Administrator@autotender.com' || email === 'abenezerteshome412@gmail.com';
+    const role = isAdmin ? 'admin' : 'user';
+
     if (!user) {
       // Register new user
       const result = await dbRun(
         `INSERT INTO users (email, name, google_id, picture, role)
-         VALUES (?, ?, ?, ?, 'user')`,
-        [email, name, googleId, picture]
+         VALUES (?, ?, ?, ?, ?)`,
+        [email, name, googleId, picture, role]
       );
-      user = { id: result.lastInsertRowid, email, name, google_id: googleId, picture, role: 'user' };
-    } else if (!user.google_id) {
-      // Link Google account to existing email (if legacy user existed)
-      await dbRun(
-        'UPDATE users SET google_id = ?, picture = ?, name = ? WHERE id = ?',
-        [googleId, picture, name, user.id]
-      );
+      user = { id: result.lastInsertRowid, email, name, google_id: googleId, picture, role };
+    } else {
+      // Link Google account to existing email (if legacy user existed) or update admin role
+      const query = user.google_id 
+        ? 'UPDATE users SET picture = ?, name = ?, role = ? WHERE id = ?' 
+        : 'UPDATE users SET google_id = ?, picture = ?, name = ?, role = ? WHERE id = ?';
+      
+      const params = user.google_id
+        ? [picture, name, role, user.id]
+        : [googleId, picture, name, role, user.id];
+
+      await dbRun(query, params);
+
       user.google_id = googleId;
       user.picture = picture;
       user.name = name;
+      user.role = role;
     }
 
     const token = jwt.sign(
